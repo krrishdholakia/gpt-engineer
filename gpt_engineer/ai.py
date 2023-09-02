@@ -1,16 +1,17 @@
 from __future__ import annotations
-
+import os 
 import json
 import logging
 
 from dataclasses import dataclass
 from typing import List, Optional, Union
-
+import litellm 
+from litellm import completion
 import openai
 import tiktoken
 
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOpenAI, ChatLiteLLM
 from langchain.chat_models.base import BaseChatModel
 from langchain.schema import (
     AIMessage,
@@ -39,7 +40,7 @@ class TokenUsage:
 class AI:
     def __init__(self, model_name="gpt-4", temperature=0.1):
         self.temperature = temperature
-        self.model_name = fallback_model(model_name)
+        self.model_name = model_name
         self.llm = create_chat_model(self.model_name, temperature)
         self.tokenizer = get_tokenizer(self.model_name)
 
@@ -150,33 +151,28 @@ class AI:
 
 
 def fallback_model(model: str) -> str:
-    try:
-        openai.Model.retrieve(model)
-        return model
-    except openai.InvalidRequestError:
-        print(
-            f"Model {model} not available for provided API key. Reverting "
-            "to gpt-3.5-turbo. Sign up for the GPT-4 wait list here: "
-            "https://openai.com/waitlist/gpt-4-api\n"
-        )
-        return "gpt-3.5-turbo"
+    print(f"reaches model in fallback models: {model}")
+    return model
+    # try:
+    #     openai.Model.retrieve(model)
+    #     return model
+    # except openai.InvalidRequestError:
+    #     print(
+    #         f"Model {model} not available for provided API key. Reverting "
+    #         "to gpt-3.5-turbo. Sign up for the GPT-4 wait list here: "
+    #         "https://openai.com/waitlist/gpt-4-api\n"
+    #     )
+    #     return "gpt-3.5-turbo"
 
 
 def create_chat_model(model: str, temperature) -> BaseChatModel:
-    if model == "gpt-4":
-        return ChatOpenAI(
-            model="gpt-4",
+    if model in litellm.model_list or model.split("/", 1)[0] in litellm.provider_list:
+        response = ChatLiteLLM(
+            model_name="azure/chatgpt-v-2",
             temperature=temperature,
             streaming=True,
-            client=openai.ChatCompletion,
         )
-    elif model == "gpt-3.5-turbo":
-        return ChatOpenAI(
-            model="gpt-3.5-turbo",
-            temperature=temperature,
-            streaming=True,
-            client=openai.ChatCompletion,
-        )
+        return response
     else:
         raise ValueError(f"Model {model} is not supported.")
 
